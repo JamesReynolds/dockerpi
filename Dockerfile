@@ -35,6 +35,25 @@ RUN # Strip the binary, this gives a substantial size reduction!
 RUN strip "arm-softmmu/qemu-system-arm" "aarch64-softmmu/qemu-system-aarch64"
 
 
+# Build stage for Serial-TUN
+FROM debian:stable-slim AS serialtun-builder
+WORKDIR /serial_tun
+
+RUN # Update package lists
+RUN apt-get update
+
+RUN # Pull source
+RUN apt-get -y install wget git
+RUN git clone https://github.com/sakisds/Serial-TUN.git
+
+RUN # Build source
+RUN sed -i s#/.*libserialport.so#/usr/lib/x86_64-linux-gnu/libserialport.a#g Serial-TUN/CMakeLists.txt
+RUN apt-get -y install build-essential cmake libserialport-dev libserialport0
+RUN cmake "Serial-TUN" -DCMAKE_C_COMPILER_ARG1='-static'
+RUN make -j$(nproc)
+RUN find / -name serial_tun
+
+
 # Build stage for fatcat
 FROM debian:stable-slim AS fatcat-builder
 ARG FATCAT_VERSION=1.1.0
@@ -66,6 +85,7 @@ ARG RPI_KERNEL_CHECKSUM="295a22f1cd49ab51b9e7192103ee7c917624b063cc5ca2e11434164
 COPY --from=qemu-system-arm-builder /qemu/arm-softmmu/qemu-system-arm /usr/local/bin/qemu-system-arm
 COPY --from=qemu-system-arm-builder /qemu/aarch64-softmmu/qemu-system-aarch64 /usr/local/bin/qemu-system-aarch64
 COPY --from=fatcat-builder /fatcat/fatcat /usr/local/bin/fatcat
+COPY --from=serialtun-builder /serial_tun/serial_tun /usr/local/bin/serial_tun
 
 ADD $RPI_KERNEL_URL /tmp/qemu-rpi-kernel.zip
 
@@ -80,7 +100,8 @@ RUN cd /tmp && \
 VOLUME /sdcard
 
 ADD ./entrypoint.sh /entrypoint.sh
-ENTRYPOINT ["./entrypoint.sh"]
+#ENTRYPOINT ["./entrypoint.sh"]
+
 
 
 # Build the dockerpi image
