@@ -72,6 +72,12 @@ then
   exit 2
 fi
 
+mkfifo /tmp/pipe.in
+mkfifo /tmp/pipe.out
+/usr/local/bin/pipe_tun -i tun0 -p /tmp/pipe &
+ip link set tun0 up
+ip addr add 10.10.10.2/24 dev tun0
+
 echo "Booting with kernel=${kernel} dtb=${dtb}"
 exec ${emulator} \
   --machine "${machine}" \
@@ -84,4 +90,5 @@ exec ${emulator} \
   --append "rw earlyprintk loglevel=8 console=ttyAMA0,115200 dwc_otg.lpm_enable=0 root=${root} rootwait panic=1" \
   --no-reboot \
   --display none \
-  --serial mon:stdio
+  --serial mon:stdio \
+  --serial pipe:/tmp/pipe

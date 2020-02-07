@@ -44,15 +44,28 @@ RUN apt-get update
 
 RUN # Pull source
 RUN apt-get -y install wget git
-RUN git clone https://github.com/sakisds/Serial-TUN.git
+RUN git clone https://github.com/jamesreynolds/Serial-TUN.git
 
-RUN # Build source
-RUN sed -i s#/.*libserialport.so#/usr/lib/x86_64-linux-gnu/libserialport.a#g Serial-TUN/CMakeLists.txt
-RUN apt-get -y install build-essential cmake libserialport-dev libserialport0
-RUN cmake "Serial-TUN" -DCMAKE_C_COMPILER_ARG1='-static'
-RUN make -j$(nproc)
-RUN find / -name serial_tun
+RUN # Build source for x86
+RUN apt-get install -y software-properties-common make curl gcc ncurses-dev perl git automake libtool
+RUN add-apt-repository ppa:linaro-maintainers/toolchain
+RUN apt-get -y install build-essential cmake libserialport-dev libserialport0 pkg-config gcc-arm-linux-gnueabi
+RUN mkdir build_x86_64 && cd build_x86_64 && cmake ../Serial-TUN && make -j$(nproc)
 
+RUN # Build source for arm
+RUN git clone git://sigrok.org/libserialport
+RUN cd libserialport \
+	&& ./autogen.sh \
+	&& CC=/usr/bin/arm-linux-gnueabi-gcc ./configure --host x86_64-pc-linux-gnu --target=arm-linux-gnueabi \
+	&& make -j $(nproc) \
+	&& cp .libs/libserialport.a /usr/arm-linux-gnueabi/lib
+RUN mkdir build_arm && cd build_arm && cmake ../Serial-TUN -DCMAKE_C_COMPILER=/usr/bin/arm-linux-gnueabi-gcc && make -j$(nproc)
+
+RUN mkdir proto
+ADD tun.sh proto/
+RUN cp /serial_tun/build_arm/serial_tun proto
+RUN truncate -s $(( 10 * 1024 * 1024 )) card.img
+RUN mkfs.ext4 -d proto card.img
 
 # Build stage for fatcat
 FROM debian:stable-slim AS fatcat-builder
@@ -85,7 +98,8 @@ ARG RPI_KERNEL_CHECKSUM="295a22f1cd49ab51b9e7192103ee7c917624b063cc5ca2e11434164
 COPY --from=qemu-system-arm-builder /qemu/arm-softmmu/qemu-system-arm /usr/local/bin/qemu-system-arm
 COPY --from=qemu-system-arm-builder /qemu/aarch64-softmmu/qemu-system-aarch64 /usr/local/bin/qemu-system-aarch64
 COPY --from=fatcat-builder /fatcat/fatcat /usr/local/bin/fatcat
-COPY --from=serialtun-builder /serial_tun/serial_tun /usr/local/bin/serial_tun
+COPY --from=serialtun-builder /serial_tun/build_x86_64/pipe_tun /usr/local/bin/pipe_tun
+COPY --from=serialtun-builder /serial_tun/card.img /usr/local/card.img
 
 ADD $RPI_KERNEL_URL /tmp/qemu-rpi-kernel.zip
 
