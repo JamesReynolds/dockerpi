@@ -89,6 +89,26 @@ RUN cmake "fatcat-${FATCAT_VERSION}" -DCMAKE_CXX_FLAGS='-static'
 RUN make -j$(nproc)
 
 
+# Build stage for dtc
+FROM debian:stable-slim AS dtc-builder
+ARG DTC_VERSION=1.5.1
+ENV DTC_TARBALL="v${DTC_VERSION}.tar.gz"
+WORKDIR /dtc
+
+RUN # Update package lists
+RUN apt-get update
+
+RUN # Pull source
+RUN apt-get -y install wget
+RUN wget https://github.com/dgibson/dtc/archive/${DTC_TARBALL}
+
+RUN # Extract source tarball
+RUN tar xvf "${DTC_TARBALL}"
+
+RUN # Build source (slightly hacky to make a statically compiled dtc)
+RUN apt-get -y install build-essential cmake flex pkg-config bison
+RUN cd dtc-${DTC_VERSION} && gcc -o ../dtc $(make dtc | grep CC | sed 's/.* \(.*\).o/\1.c/g') -DNO_YAML -static -I libfdt
+
 # Build the dockerpi VM image
 FROM busybox:1.31 AS dockerpi-vm
 LABEL maintainer="Luke Childs <lukechilds123@gmail.com>"
@@ -100,6 +120,7 @@ COPY --from=qemu-system-arm-builder /qemu/aarch64-softmmu/qemu-system-aarch64 /u
 COPY --from=fatcat-builder /fatcat/fatcat /usr/local/bin/fatcat
 COPY --from=serialtun-builder /serial_tun/build_x86_64/pipe_tun /usr/local/bin/pipe_tun
 COPY --from=serialtun-builder /serial_tun/card.img /usr/local/card.img
+COPY --from=dtc-builder /dtc/dtc /usr/local/bin/dtc
 
 ADD $RPI_KERNEL_URL /tmp/qemu-rpi-kernel.zip
 
