@@ -107,7 +107,7 @@ RUN tar xvf "${DTC_TARBALL}"
 
 RUN # Build source (slightly hacky to make a statically compiled dtc)
 RUN apt-get -y install build-essential cmake flex pkg-config bison
-RUN cd dtc-${DTC_VERSION} && gcc -o ../dtc $(make dtc | grep CC | sed 's/.* \(.*\).o/\1.c/g') -DNO_YAML -static -I libfdt
+RUN cd dtc-${DTC_VERSION} && gcc -o ../fdtoverlay $(make fdtoverlay | grep CC | sed 's/.* \(.*\).o/\1.c/g') -DNO_YAML -static -I libfdt
 
 # Build the dockerpi VM image
 FROM busybox:1.31 AS dockerpi-vm
@@ -120,7 +120,7 @@ COPY --from=qemu-system-arm-builder /qemu/aarch64-softmmu/qemu-system-aarch64 /u
 COPY --from=fatcat-builder /fatcat/fatcat /usr/local/bin/fatcat
 COPY --from=serialtun-builder /serial_tun/build_x86_64/pipe_tun /usr/local/bin/pipe_tun
 COPY --from=serialtun-builder /serial_tun/card.img /usr/local/card.img
-COPY --from=dtc-builder /dtc/dtc /usr/local/bin/dtc
+COPY --from=dtc-builder /dtc/fdtoverlay /usr/local/bin/fdtoverlay
 
 ADD $RPI_KERNEL_URL /tmp/qemu-rpi-kernel.zip
 
