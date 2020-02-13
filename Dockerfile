@@ -8,7 +8,7 @@ RUN # Update package lists
 RUN apt-get update
 
 RUN # Pull source
-RUN apt-get -y install wget
+RUN apt-get -y install wget git
 RUN wget "https://download.qemu.org/${QEMU_TARBALL}"
 
 RUN # Verify signatures
